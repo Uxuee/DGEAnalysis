@@ -8,7 +8,7 @@
 ##### Set libraries and defaults and load provided files
 rm(list=ls())
 options(stringsAsFactors=FALSE)
-file_path<-"C:/Users/ariad/OneDrive/Desktop/Proyect WCQN/data/provided/ASD_RNAseq_ExpressionData.Rdata"
+file_path<-"C:/Users/ariad/OneDrive/Desktop/Proyecto/DGEAnalysis/provided/ASD_RNAseq_ExpressionData.Rdata"
 #"C:/Users/ariad/OneDrive/Desktop/Transcriptomics/Genome-wide-changes-in-lncRNA-alternative-splicing-and-cortical-patterning-in-autism-master/data/provided/ASD_RNAseq_ExpressionData.Rdata"
 #"C:/Users/palom/Desktop/Transcriptomics/Genome-wide-changes-in-lncRNA-alternative-splicing-and-cortical-patterning-in-autism-master/data/provided/ASD_RNAseq_ExpressionData.Rdata"
 load(file=file_path)
@@ -208,7 +208,7 @@ length(genes_passed)  # Number of genes before applying gene length filter
 # Load gene length annotation
 # load("GC18unionAnno.Rdata") 
 
-file_path<-"C:/Users/ariad/OneDrive/Desktop/Transcriptomics/Genome-wide-changes-in-lncRNA-alternative-splicing-and-cortical-patterning-in-autism-master/data/provided/GC18unionAnno.Rdata"
+file_path<-"C:/Users/ariad/OneDrive/Desktop/Proyecto/DGEAnalysis/provided/GC18unionAnno.Rdata"
 load(file_path) ## Modified version of Gencode v18 .gtf file to include union exon gene lengths
 
 # Get only genes longer than 20bp
