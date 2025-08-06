@@ -286,22 +286,6 @@ log2Transform <- function(data) {
 }
 
 
-
-remove_words_and_duplicates <- function(df, words_to_remove) {
-  # 1. Remove specified words from column names
-  new_names <- colnames(df)
-  for (word in words_to_remove) {
-    new_names <- gsub(word, "", new_names, fixed = TRUE)
-  }
-  colnames(df) <- new_names
-  
-  # 2. Remove duplicated column names (keep first occurrence)
-  df <- df[, !duplicated(colnames(df))]
-  
-  return(df)
-}
-
-
 ## For Union Exon
 inter <- intersect(rownames(datExpr.HTSC.unionexon.C), genes_final)
 datExpr.HTSC.unionexon.C.filtered <- na.omit(datExpr.HTSC.unionexon.C[inter, ])
