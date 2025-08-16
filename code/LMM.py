@@ -7,18 +7,19 @@ from statsmodels.stats.multitest import multipletests
 import os
 #path = 'D:/Proyect/Exports'
 #path = os.path.join(os.path.dirname(__file__), 'Exports')  
-path = 'C:/Users/ariad/OneDrive/Desktop/Proyect WCQN/Exports2'#'C:/Users/ariad/OneDrive/Desktop/Proyecto/Exports'
+#path = 'C:/Users/ariad/OneDrive/Desktop/Proyect WCQN/Exports2'#'C:/Users/ariad/OneDrive/Desktop/Proyecto/Exports'
+path = 'C:/Users/ariad/OneDrive/Desktop/Proyecto/Exports'  # Adjust this path as needed
 import glob
 import pickle
 np.random.seed(123)  # for reproducibility
 
 # Get all relevant expression/metadata pairs from folder
-expression_files = sorted(glob.glob(path + "/datExpr_*"+".csv"))
-metadata_files = sorted(glob.glob(path + "/datMeta_*"+".csv"))
+expression_files = sorted(glob.glob(path + "/datExpr.*"+".csv"))
+metadata_files = sorted(glob.glob(path + "/datMeta.*"+".csv"))
 
 def get_dataset_name(file_path):
-    #namee = os.path.basename(file_path).replace("datExpr.HTSC.unionexon.", "").replace(".filtered.csv", "")
-    namee = os.path.basename(file_path).replace("datExpr_", "").replace("_adjusted.csv", "")
+    namee = os.path.basename(file_path).replace("datExpr.HTSC.unionexon.", "").replace(".filtered.csv", "")
+    #namee = os.path.basename(file_path).replace("datExpr_", "").replace("_adjusted.csv", "")
     if namee == "C" or namee == "CBL":
         return "Vermis" 
     elif namee == "F" or namee == "FRT":
@@ -99,16 +100,23 @@ for expr_file, meta_file in zip(expression_files, metadata_files):
         df = metadata[['Diagnosis', 'Age', 'Age2', 'BrainBank', 'Seizures', 'Sex', 'SeqBatch']].copy()
         df['Y'] = gene_expr
         
-        # Remove rows with NA in either expression or covariates
-        df = df.dropna(subset=['Y', 'Diagnosis', 'Age', 'Age2', 'BrainBank', 'Seizures', 'Sex', 'SeqBatch'])
-        
+        # Impute missing values for numeric columns with mean, categorical with mode
+        for col in ['Y', 'Diagnosis', 'Age', 'Age2', 'BrainBank', 'Seizures', 'Sex', 'SeqBatch']:
+            if df[col].dtype.kind in 'biufc':  # Numeric types
+                df[col] = df[col].fillna(df[col].mean())
+            else:  # Categorical types
+                df[col] = df[col].fillna(df[col].mode()[0])
+
+        # Now you don't need to drop NA rows
+        # df = df.dropna(subset=['Y', 'Diagnosis', 'Age', 'Age2', 'BrainBank', 'Seizures', 'Sex', 'SeqBatch'])        
+
         if len(df) < 20:
             continue  # Skip if not enough samples to fit model
         
         ## HERE IS THE LMM
         try:
             model = smf.mixedlm(
-                "Y ~ 1 + Diagnosis + Age + Age2", #+ BrainBank + Seizures + Sex",
+                "Y ~ 1 + Diagnosis + Age + Age2 + BrainBank + Seizures + Sex",
                 df,
                 groups=df["SeqBatch"]
             ).fit()
@@ -117,8 +125,11 @@ for expr_file, meta_file in zip(expression_files, metadata_files):
             # Get the coefficient and p-value for Diagnosis (ASD vs CTL)
             coef = model.params['Diagnosis']
             pval = model.pvalues['Diagnosis']
-            
-            results.append({'Gene': gene, 'EffectSize': coef, 'P-Value': pval})
+                        
+            # Standardize the effect size: divide by the standard deviation of the gene's expression
+            std_effect = coef / gene_expr.std()
+
+            results.append({'Gene': gene, 'EffectSize': coef, 'StdEffect': std_effect, 'P-Value': pval})
             
         except Exception as e:
             print("Skipped {} due to: {}".format(gene, e))
@@ -130,11 +141,11 @@ for expr_file, meta_file in zip(expression_files, metadata_files):
         print("No valid models for dataset: {}".format(dataset_name))
         continue 
 
-    # Apply Benjamini-Hochberg
-    results_df['FDR'], results_df['pBH'], _, _ = multipletests(results_df['P-Value'], method='fdr_bh')
+    # Apply Benjamini/Yekutieli
+    results_df['FDR'], results_df['pBH'], _, _ = multipletests(results_df['P-Value'], method='fdr_by')
 
     # Select significant genes
-    sig_genes = results_df[(results_df['pBH'] < 0.05) & (abs(results_df['EffectSize']) > 0.6)]
+    sig_genes = results_df[(results_df['pBH'] < 0.05) & (abs(results_df['StdEffect']) > 0.8)]
 
     # Save results
     results_df.to_csv(os.path.join(output_path,'{}_LMM.csv'.format(dataset_name+"_" )), index=True)
@@ -144,7 +155,7 @@ for expr_file, meta_file in zip(expression_files, metadata_files):
 
     # Ensure -log10(p-values) and volcano annotations
     results_df['-log10(pBH)'] = -np.log10(results_df['pBH'])
-    results_df['Significant'] = (results_df['pBH'] < 0.05) & (abs(results_df['EffectSize']) > 0.6)
+    results_df['Significant'] = (results_df['pBH'] < 0.05) & (abs(results_df['StdEffect']) > 0.8)
 
     results_df = results_df.replace([np.inf, -np.inf], np.nan).dropna()
     # Optional: Set plotting limits for clarity
