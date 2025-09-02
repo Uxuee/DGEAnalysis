@@ -57,8 +57,7 @@ def encode_categorical_metadata(meta):
 
 print("Script has started...")
 
-output_path = 'C:/Users/ariad/OneDrive/Desktop/Proyecto/LMMResults' 
-
+output_path = 'C:/Users/ariad/OneDrive/Desktop/Proyecto/DGEAnalysis/imputed' 
 
 # ...existing code...
 
@@ -91,14 +90,6 @@ for meta_file in metadata_files:
         # Save predictions
         imputed = unknown.copy()
         imputed['Seizures_predicted'] = y_pred
-        # Convert numeric predictions back to string labels if needed
-        label_map = {0: "No", 1: "Yes"}
-        imputed_str = [label_map[val] for val in imputed['Seizures_predicted']]
-        with open(os.path.join(output_path, f"{dataset_name}_rf_imputed_seizures.csv"), "w") as f:
-            f.write(",".join(imputed_str))
-        print(f"Imputed {len(y_pred)} missing Seizures for {dataset_name}")
-    else:
-        print(f"No missing Seizures to impute for {dataset_name}")
 
     # Optionally, evaluate on known data (train set)
     y_train_pred = rf_model.predict(X_train)
@@ -112,10 +103,15 @@ for meta_file in metadata_files:
         f.write(f"Training Accuracy: {acc}\n")
     with open(os.path.join(output_path, f"{dataset_name}_rf_classification_report.txt"), "w") as f:
         f.write(report_text)
-# ...existing code...
-    # Now, update the original metadata with imputed values
+
     if not unknown.empty:
         metadata.loc[imputed.index, 'Seizures'] = imputed['Seizures_predicted']
     # Save the updated metadata
-    metadata.to_csv(os.path.join(output_path, f"{dataset_name}_updated_metadata.csv"))
+    metadata.to_csv(os.path.join(output_path, f"datMeta.unionexon.{dataset_name}.csv"), index=True)
     print(f"Updated metadata saved for {dataset_name}")
+
+    dataset_name = get_dataset_name(meta_file)
+    print(dataset_name)
+    metadata = pd.read_csv(meta_file, index_col=0)
+    metadata = encode_categorical_metadata(metadata)
+
