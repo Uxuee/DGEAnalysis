@@ -1,6 +1,5 @@
 # Importing libraries
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report
 import pandas as pd
 import os
 #path = 'D:/Proyect/Exports'
@@ -8,11 +7,17 @@ import os
 #path = 'C:/Users/ariad/OneDrive/Desktop/Proyect WCQN/Exports2'#'C:/Users/ariad/OneDrive/Desktop/Proyecto/Exports'
 path = 'C:/Users/ariad/OneDrive/Desktop/Proyecto/DGEAnalysis/Exports'  # Adjust this path as needed
 import glob
+from sklearn.model_selection import cross_val_score
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neighbors import KNeighborsClassifier
+
 
 
 # Load your dataset
 metadata_files = sorted(glob.glob(path + "/datMeta.*"+".csv"))
-
+expression_files = sorted(glob.glob(path + "/datExpr.HTSC.unionexon.*"+".filtered.csv"))
 
 def get_dataset_name(file_path):
     namee = os.path.basename(file_path).replace("datMeta.unionexon.", "").replace(".csv", "")
@@ -24,94 +29,82 @@ def get_dataset_name(file_path):
     elif namee == "T" or namee == "TEM":
         return "Temporal"
 
-def encode_categorical_metadata(meta):
-    """
-    Encodes categorical metadata for machine learning:
-    - Applies binary label encoding to selected columns.
-    - Performs one-hot encoding for multiclass columns.
-    - Simplifies comorbidity and cause of death.
-    
-    Parameters:
-        meta (pd.DataFrame): The original metadata DataFrame.
-    
-    Returns:
-        pd.DataFrame: Encoded metadata with categorical variables prepared for ML.
-    """
-    # Copy only the relevant columns to avoid modifying the original metadata
-    encoded_meta = meta.copy()
-
-    # 1. Binary label encoding
-    binary_map = {
-        'Sex': {'M': 0, 'F': 1},
-        'BrainBank': {'ATP': 0, 'NICHD': 1},
-        'ASD.CTL': {'CTL': 0, 'ASD': 1},
-        'Seizures': {'No': 0, 'Yes': 1},
-        'Pyschiatric.Medications': {'No': 0, 'Yes': 1},
-        'DeathCategory': {'Sudden': 0,'Prolonged': 1}
-    }
-    for col, mapping in binary_map.items():
-        if col in encoded_meta.columns:
-            encoded_meta[col] = encoded_meta[col].map(mapping)
-
-    return encoded_meta
-
 print("Script has started...")
 
 output_path = 'C:/Users/ariad/OneDrive/Desktop/Proyecto/DGEAnalysis/imputed' 
 
 # ...existing code...
 
-for meta_file in metadata_files:
+for meta_file,expr_file in zip(metadata_files,expression_files):
     dataset_name = get_dataset_name(meta_file)
     print(dataset_name)
     metadata = pd.read_csv(meta_file, index_col=0)
-    metadata = encode_categorical_metadata(metadata)
+    expression_df = pd.read_csv(expr_file, index_col=0)  # genes x samples
 
-    # Use only relevant columns
-    features = ['ASD.CTL', 'Age', 'BrainBank', 'Sex']
-    # Ensure no missing values in features for prediction
-    metadata = metadata.dropna(subset=features, how='any')
+    # Transpose expression so rows = samples, columns = genes
+    expression_df = expression_df.T
+
+    # Encode Seizures column ("Yes"/"No" → 1/0)
+    metadata['Seizures'] = metadata['Seizures'].map({'Yes': 1, 'No': 0})
+
+    # Align samples
+    common_samples = metadata.index.intersection(expression_df.index)
+    expression_df = expression_df.loc[common_samples]
+    metadata = metadata.loc[common_samples]
 
     # Split into known and unknown Seizures
     known = metadata[metadata['Seizures'].notna()]
     unknown = metadata[metadata['Seizures'].isna()]
 
-    X_train = known[features]
+    X_train =  expression_df.loc[known.index]
     y_train = known['Seizures'].astype(int)  # Make sure it's int for classification
 
     # Train the model
-    rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
+    classifiers = {
+        "RandomForest": RandomForestClassifier(n_estimators=250, random_state=42),
+        "LogisticRegression": LogisticRegression(max_iter=1000, random_state=42),
+        "SVC": SVC(kernel='rbf', probability=True, random_state=42),
+        "KNeighbors": KNeighborsClassifier(n_neighbors=5)
+    }
+
+    best_score = 0
+    best_name = None
+    best_model = None
+
+    for name, clf in classifiers.items():
+        scores = cross_val_score(clf, X_train, y_train, cv=5, scoring='accuracy')
+        mean_score = scores.mean()
+        print(f"{name} cross-validated accuracy: {mean_score:.4f}")
+        if mean_score > best_score:
+            best_score = mean_score
+            best_name = name
+            best_model = clf
+
+    print(f"Best classifier: {best_name} with accuracy {best_score:.4f}")
+    rf_model = best_model
     rf_model.fit(X_train, y_train)
 
     # Predict for missing Seizures
     if not unknown.empty:
-        X_pred = unknown[features]
+        X_pred = expression_df.loc[unknown.index]
         y_pred = rf_model.predict(X_pred)
         # Save predictions
         imputed = unknown.copy()
-        imputed['Seizures_predicted'] = y_pred
+        imputed['Seizures'] = y_pred
 
     # Optionally, evaluate on known data (train set)
-    y_train_pred = rf_model.predict(X_train)
-    acc = accuracy_score(y_train, y_train_pred)
-    report_text = classification_report(y_train, y_train_pred)
-    print("Training Accuracy:", acc)
-    print("Training Classification Report:\n", report_text)
+    cv_scores = cross_val_score(rf_model, X_train, y_train, cv=5, scoring='accuracy')
+    print("Cross-validated accuracy:", cv_scores.mean())
+    acc = cv_scores.mean()
 
     # Export accuracy and report
     with open(os.path.join(output_path, f"{dataset_name}_rf_accuracy.txt"), "w") as f:
         f.write(f"Training Accuracy: {acc}\n")
-    with open(os.path.join(output_path, f"{dataset_name}_rf_classification_report.txt"), "w") as f:
-        f.write(report_text)
 
     if not unknown.empty:
-        metadata.loc[imputed.index, 'Seizures'] = imputed['Seizures_predicted']
+        metadata.loc[imputed.index, 'Seizures'] = imputed['Seizures']
     # Save the updated metadata
-    metadata.to_csv(os.path.join(output_path, f"datMeta.unionexon.{dataset_name}.csv"), index=True)
+    metadata.to_csv(os.path.join(output_path, f"datMeta.unionexon.{dataset_name}.imp.csv"), index=True)
     print(f"Updated metadata saved for {dataset_name}")
 
-    dataset_name = get_dataset_name(meta_file)
-    print(dataset_name)
-    metadata = pd.read_csv(meta_file, index_col=0)
-    metadata = encode_categorical_metadata(metadata)
 

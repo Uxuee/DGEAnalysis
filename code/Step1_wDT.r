@@ -281,10 +281,9 @@ GeTMM <- function(counts) {
 
 
 # 9. Log2 transformation (applies to all expression data)
-log2Transform <- function(data) {
-  return(log2(data + 1))#in case there are zeros in the data but it shouldnt happen because of the previous filtering
+signed_log2 <- function(x) {
+  sign(x) * log2(abs(x) + 1)
 }
-
 
 ## For Union Exon
 inter <- intersect(rownames(datExpr.HTSC.unionexon.C), genes_final)
@@ -346,34 +345,26 @@ create_DT <- function(expr_matrix_A, expr_matrix_B, meta_A, meta_B) {
 #: C-T, C-F, F-T.
 
 CT <- create_DT(datExpr.HTSC.unionexon.C.filtered,datExpr.HTSC.unionexon.T.filtered ,datMeta.HTSC.unionexon.C, datMeta.HTSC.unionexon.T)
-DT_C_T_unionexon <- CT$DT
+DT_C_T_unionexon <- signed_log2(CT$DT)
 datMeta.DT_C_T_unionexon <- CT$meta
 
 CF <- create_DT(datExpr.HTSC.unionexon.C.filtered,datExpr.HTSC.unionexon.F.filtered ,datMeta.HTSC.unionexon.C, datMeta.HTSC.unionexon.F)
-DT_C_F_unionexon <- CF$DT
+DT_C_F_unionexon <- signed_log2(CF$DT)
 datMeta.DT_C_F_unionexon <- CF$meta
 
 FT <- create_DT(datExpr.HTSC.unionexon.F.filtered,datExpr.HTSC.unionexon.T.filtered ,datMeta.HTSC.unionexon.F, datMeta.HTSC.unionexon.T)
-DT_F_T_unionexon <- FT$DT
+DT_F_T_unionexon <- signed_log2(FT$DT)
 datMeta.DT_F_T_unionexon <- FT$meta
 
-
-DT_C_T_unionexon <- log2Transform(DT_C_T_unionexon)
-DT_C_F_unionexon <- log2Transform(DT_C_F_unionexon)
-DT_F_T_unionexon <- log2Transform(DT_F_T_unionexon)
 # Save the DT matrices
 output_path <- "C:/Users/ariad/OneDrive/Desktop/Proyecto/DGEAnalysis/Exports"
-write.csv(DT_C_T_unionexon, file = file.path(output_path, "DT_C_T_unionexon.csv"), row.names = TRUE)
-write.csv(DT_C_F_unionexon, file = file.path(output_path, "DT_C_F_unionexon.csv"), row.names = TRUE)
-write.csv(DT_F_T_unionexon, file = file.path(output_path, "DT_F_T_unionexon.csv"), row.names = TRUE)
+write.csv(DT_C_T_unionexon, file = file.path(output_path, "DT_datExpr_C_T_unionexon.csv"), row.names = TRUE)
+write.csv(DT_C_F_unionexon, file = file.path(output_path, "DT_datExpr_C_F_unionexon.csv"), row.names = TRUE)
+write.csv(DT_F_T_unionexon, file = file.path(output_path, "DT_datExpr_F_T_unionexon.csv"), row.names = TRUE)
 
 write.csv(datMeta.DT_C_T_unionexon, file = file.path(output_path, "DT_datMeta_C_T_unionexon.csv"), row.names = TRUE)
 write.csv(datMeta.DT_C_F_unionexon, file = file.path(output_path, "DT_datMeta_C_F_unionexon.csv"), row.names = TRUE)
 write.csv(datMeta.DT_F_T_unionexon, file = file.path(output_path, "DT_datMeta_F_T_unionexon.csv"), row.names = TRUE)
-
-datExpr.HTSC.unionexon.C.filtered <- log2Transform(datExpr.HTSC.unionexon.C.filtered)
-datExpr.HTSC.unionexon.F.filtered <- log2Transform(datExpr.HTSC.unionexon.F.filtered)
-datExpr.HTSC.unionexon.T.filtered <- log2Transform(datExpr.HTSC.unionexon.T.filtered)
 
 #The metadata (datMeta) is filtered to include only the samples present in the normalized expression matrix.
 datMeta.unionexon.C <- datMeta.HTSC.unionexon.C[match(colnames(datExpr.HTSC.unionexon.C.filtered),rownames(datMeta.HTSC.unionexon.C)),] 

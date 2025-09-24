@@ -15,7 +15,7 @@ from statsmodels.stats.multitest import fdrcorrection_twostage
 
 # Get all relevant expression/metadata pairs from folder
 expression_files = sorted(glob.glob(path + "/DT_datExpr_*"+".csv"))
-metadata_files = sorted(glob.glob(path + "/DT_datMeta_*"+"imput.csv"))
+metadata_files = sorted(glob.glob(path + "/DT_datMeta_*"+"imp.csv"))
 
 def get_dataset_name(file_path):
     namee = os.path.basename(file_path).replace("DT_datExpr_", "").replace("_unionexon.csv", "")
@@ -46,7 +46,7 @@ for expr_file, meta_file in zip(expression_files, metadata_files):
     expression_df = pd.read_csv(expr_file, index_col=0)
     metadata = pd.read_csv(meta_file, index_col=0)
     # Centering and squaring Age
-    metadata['Age_c'] = (metadata['Age'] - metadata['Age'].mean())/(2*metadata['Age'].std())  # Centering Age
+    metadata['Age_c'] = (metadata['Age'] - metadata['Age'].mean())/(metadata['Age'].std())  # Centering Age
     metadata['Age2']  = (metadata['Age_c']) ** 2   # quadratic term
 
     # Transpose expression: samples x genes

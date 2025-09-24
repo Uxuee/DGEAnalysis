@@ -30,6 +30,40 @@ def get_dataset_name(file_path):
     elif namee == "T" or namee == "TEM":
         return "Temporal"
 
+
+def encode_categorical_metadata(meta):
+    """
+    Encodes categorical metadata for machine learning:
+    - Applies binary label encoding to selected columns.
+    - Performs one-hot encoding for multiclass columns.
+    - Simplifies comorbidity and cause of death.
+    
+    Parameters:
+        meta (pd.DataFrame): The original metadata DataFrame.
+    
+    Returns:
+        pd.DataFrame: Encoded metadata with categorical variables prepared for ML.
+    """
+    # Copy only the relevant columns to avoid modifying the original metadata
+    encoded_meta = meta.copy()
+
+    # 1. Binary label encoding
+    binary_map = {
+        'Sex': {'M': 0, 'F': 1},
+        'BrainBank': {'ATP': 0, 'NICHD': 1},
+        'ASD.CTL': {'CTL': 0, 'ASD': 1},
+        'Seizures': {0.0: 0, 1.0: 1}
+        }
+    for col, mapping in binary_map.items():
+        if col in encoded_meta.columns:
+            if col == 'Seizures':
+                encoded_meta[col] = encoded_meta[col].astype(int).map(mapping)
+            else:
+                encoded_meta[col] = encoded_meta[col].map(mapping)
+
+    return encoded_meta
+
+
 print("Script has started...")
 
 output_path = 'C:/Users/ariad/OneDrive/Desktop/Proyecto/LMMResults' 
@@ -45,6 +79,7 @@ for expr_file, meta_file in zip(expression_files, metadata_files):
     
     expression_df = pd.read_csv(expr_file, index_col=0)
     metadata = pd.read_csv(meta_file, index_col=0)
+
     # Centering and squaring Age
     metadata['Age_c'] = (metadata['Age'] - metadata['Age'].mean())/(2*metadata['Age'].std())  # Centering Age
     metadata['Age2']  = (metadata['Age_c']) ** 2   # quadratic term
@@ -56,8 +91,9 @@ for expr_file, meta_file in zip(expression_files, metadata_files):
     common_samples = metadata.index.intersection(expression_df.index)
     expression_df = expression_df.loc[common_samples]
     metadata = metadata.loc[common_samples]
-    #metadata= encode_categorical_metadata(metadata)
+    metadata= encode_categorical_metadata(metadata)
     metadata['Diagnosis'] = metadata['ASD.CTL']
+
 
     print("Metadata shape: {}".format(metadata.shape))
     print("Expression shape: {}".format(expression_df.shape))
@@ -84,29 +120,29 @@ for expr_file, meta_file in zip(expression_files, metadata_files):
             ).fit()
 
             # Only plot and export for the first 5 genes
-            if len(results) < 5:
-                # KDE plot of residuals
-                fig_kde = plt.figure(figsize=(10, 6))
-                ax_kde = sns.kdeplot(model.resid, fill=True, linewidth=1, color='blue', label='Residuals KDE')
-                x = np.linspace(model.resid.min(), model.resid.max(), 100)
-                ax_kde.plot(x, stats.norm.pdf(x, model.resid.mean(), model.resid.std()), color='black', linestyle='--', label='Normal PDF')
-                ax_kde.set_title(f"KDE Plot of Model Residuals: {gene}")
-                ax_kde.set_xlabel("Residuals")
-                ax_kde.legend()
-                plt.tight_layout()
-                kde_path = os.path.join(output_path, f"{dataset_name}_{gene}_resid_KDE.png")
-                plt.savefig(kde_path, dpi=200)
-                plt.close(fig_kde)
+            #if len(results) < 5:
+            #    # KDE plot of residuals
+            #    fig_kde = plt.figure(figsize=(10, 6))
+            #    ax_kde = sns.kdeplot(model.resid, fill=True, linewidth=1, color='blue', label='Residuals KDE')
+            #    x = np.linspace(model.resid.min(), model.resid.max(), 100)
+            #    ax_kde.plot(x, stats.norm.pdf(x, model.resid.mean(), model.resid.std()), color='black', linestyle='--', label='Normal PDF')
+            #    ax_kde.set_title(f"KDE Plot of Model Residuals: {gene}")
+            #    ax_kde.set_xlabel("Residuals")
+            #    ax_kde.legend()
+            #    plt.tight_layout()
+            #    kde_path = os.path.join(output_path, f"{dataset_name}_{gene}_resid_KDE.png")
+            #    plt.savefig(kde_path, dpi=200)
+            #    plt.close(fig_kde)
 
-                # Q-Q plot
-                fig_qq = plt.figure(figsize=(8, 8))
-                ax_qq = fig_qq.add_subplot(111)
-                sm.qqplot(model.resid, dist=stats.norm, line='s', ax=ax_qq)
-                ax_qq.set_title(f"Q-Q Plot of Model Residuals: {gene}")
-                plt.tight_layout()
-                qq_path = os.path.join(output_path, f"{dataset_name}_{gene}_resid_QQ.png")
-                plt.savefig(qq_path, dpi=200)
-                plt.close(fig_qq)
+            #    # Q-Q plot
+            #    fig_qq = plt.figure(figsize=(8, 8))
+            #    ax_qq = fig_qq.add_subplot(111)
+            #    sm.qqplot(model.resid, dist=stats.norm, line='s', ax=ax_qq)
+            #    ax_qq.set_title(f"Q-Q Plot of Model Residuals: {gene}")
+            #    plt.tight_layout()
+            #    qq_path = os.path.join(output_path, f"{dataset_name}_{gene}_resid_QQ.png")
+            #    plt.savefig(qq_path, dpi=200)
+            #    plt.close(fig_qq)
 
             # Get the coefficient and p-value for Diagnosis (ASD vs CTL)
             coef = model.tvalues['Diagnosis']
