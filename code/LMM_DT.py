@@ -17,6 +17,38 @@ from statsmodels.stats.multitest import fdrcorrection_twostage
 expression_files = sorted(glob.glob(path + "/DT_datExpr_*"+".csv"))
 metadata_files = sorted(glob.glob(path + "/DT_datMeta_*"+"imp.csv"))
 
+def encode_categorical_metadata(meta):
+    """
+    Encodes categorical metadata for machine learning:
+    - Applies binary label encoding to selected columns.
+    - Performs one-hot encoding for multiclass columns.
+    - Simplifies comorbidity and cause of death.
+    
+    Parameters:
+        meta (pd.DataFrame): The original metadata DataFrame.
+    
+    Returns:
+        pd.DataFrame: Encoded metadata with categorical variables prepared for ML.
+    """
+    # Copy only the relevant columns to avoid modifying the original metadata
+    encoded_meta = meta.copy()
+
+    # 1. Binary label encoding
+    binary_map = {
+        'Sex': {'M': 0, 'F': 1},
+        'BrainBank': {'ATP': 0, 'NICHD': 1},
+        'ASD.CTL': {'CTL': 0, 'ASD': 1},
+        'Seizures': {0.0: 0, 1.0: 1}
+        }
+    for col, mapping in binary_map.items():
+        if col in encoded_meta.columns:
+            if col == 'Seizures':
+                encoded_meta[col] = encoded_meta[col].astype(int).map(mapping)
+            else:
+                encoded_meta[col] = encoded_meta[col].map(mapping)
+
+    return encoded_meta
+
 def get_dataset_name(file_path):
     namee = os.path.basename(file_path).replace("DT_datExpr_", "").replace("_unionexon.csv", "")
     #namee = os.path.basename(file_path).replace("datExpr_", "").replace("_adjusted.csv", "")
@@ -46,7 +78,7 @@ for expr_file, meta_file in zip(expression_files, metadata_files):
     expression_df = pd.read_csv(expr_file, index_col=0)
     metadata = pd.read_csv(meta_file, index_col=0)
     # Centering and squaring Age
-    metadata['Age_c'] = (metadata['Age'] - metadata['Age'].mean())/(metadata['Age'].std())  # Centering Age
+    metadata['Age_c'] = (metadata['Age'] - metadata['Age'].mean())/(2*metadata['Age'].std())  # Centering Age
     metadata['Age2']  = (metadata['Age_c']) ** 2   # quadratic term
 
     # Transpose expression: samples x genes
@@ -56,7 +88,7 @@ for expr_file, meta_file in zip(expression_files, metadata_files):
     common_samples = metadata.index.intersection(expression_df.index)
     expression_df = expression_df.loc[common_samples]
     metadata = metadata.loc[common_samples]
-    #metadata= encode_categorical_metadata(metadata)
+    metadata= encode_categorical_metadata(metadata)
     metadata['Diagnosis'] = metadata['ASD.CTL']
 
     print("Metadata shape: {}".format(metadata.shape))
