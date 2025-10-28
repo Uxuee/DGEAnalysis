@@ -1,4 +1,5 @@
-# DGE Analysis: Autism Spectrum Disorder (ASD) Data  
+
+# NeuroDE-LMM — Differential Gene Expression with Linear Mixed Models
 
 ## Overview  
 This repository attempts to: preprocess data, conduct DGE analysis, and visualize results in a reproducible pipeline.  
@@ -14,3 +15,4 @@ This repository attempts to: preprocess data, conduct DGE analysis, and visualiz
 - LMMResults: Results generated from the execution of the LMM.py script.
 - Exports: Data outputs obtained after running step1.R.
 - plots: Visualizations and graphs stored here, created during the analysis.
+
