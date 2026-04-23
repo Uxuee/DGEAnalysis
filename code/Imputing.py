@@ -7,7 +7,7 @@ import os
 #path = 'C:/Users/ariad/OneDrive/Desktop/Proyect WCQN/Exports2'#'C:/Users/ariad/OneDrive/Desktop/Proyecto/Exports'
 path = 'C:/Users/ariad/OneDrive/Desktop/Proyecto/DGEAnalysis/Exports'  # Adjust this path as needed
 import glob
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_val_score, GridSearchCV
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier
@@ -59,12 +59,42 @@ for meta_file,expr_file in zip(metadata_files,expression_files):
     X_train =  expression_df.loc[known.index]
     y_train = known['Seizures'].astype(int)  # Make sure it's int for classification
 
-    # Train the model
+    # Define hyperparameter grids for each classifier
+    param_grids = {
+        "RandomForest": {
+            'n_estimators': [100, 250],
+            'max_depth': [None, 10],
+            'min_samples_split': [2, 5]
+        },
+        "LogisticRegression": {
+            'C': [0.1, 1.0, 10.0],
+            'max_iter': [1000]
+        },
+        "SVC": {
+            'C': [0.1, 1.0, 10.0],
+            'kernel': ['rbf'],
+            'probability': [True]
+        },
+        "KNeighbors": {
+            'n_neighbors': [3, 5, 7],
+            'weights': ['uniform', 'distance']
+        }
+    }
+
+    # Define classifiers
     classifiers = {
-        "RandomForest": RandomForestClassifier(n_estimators=250, random_state=42),
-        "LogisticRegression": LogisticRegression(max_iter=1000, random_state=42),
-        "SVC": SVC(kernel='rbf', probability=True, random_state=42),
-        "KNeighbors": KNeighborsClassifier(n_neighbors=5)
+        "RandomForest": RandomForestClassifier(random_state=42),
+        "LogisticRegression": LogisticRegression(random_state=42),
+        "SVC": SVC(random_state=42),
+        "KNeighbors": KNeighborsClassifier()
+    }
+
+    # Define multiple scoring metrics
+    scoring = {
+        'accuracy': 'accuracy',
+        'precision': 'precision',
+        'recall': 'recall',
+        'f1': 'f1'
     }
 
     best_score = 0
@@ -72,17 +102,29 @@ for meta_file,expr_file in zip(metadata_files,expression_files):
     best_model = None
 
     for name, clf in classifiers.items():
-        scores = cross_val_score(clf, X_train, y_train, cv=5, scoring='accuracy')
-        mean_score = scores.mean()
+        # Use GridSearchCV with multi-metric scoring
+        # Set refit='accuracy' to specify which metric to use for selecting best model
+        grid_search = GridSearchCV(
+            clf, 
+            param_grids[name], 
+            cv=5, 
+            scoring=scoring,
+            refit='accuracy',  # Explicitly set refit parameter for multi-metric scoring
+            n_jobs=-1
+        )
+        grid_search.fit(X_train, y_train)
+        
+        mean_score = grid_search.cv_results_['mean_test_accuracy'][grid_search.best_index_]
         print(f"{name} cross-validated accuracy: {mean_score:.4f}")
+        print(f"  Best parameters: {grid_search.best_params_}")
+        
         if mean_score > best_score:
             best_score = mean_score
             best_name = name
-            best_model = clf
+            best_model = grid_search.best_estimator_
 
     print(f"Best classifier: {best_name} with accuracy {best_score:.4f}")
     rf_model = best_model
-    rf_model.fit(X_train, y_train)
 
     # Predict for missing Seizures
     if not unknown.empty:
@@ -92,7 +134,7 @@ for meta_file,expr_file in zip(metadata_files,expression_files):
         imputed = unknown.copy()
         imputed['Seizures'] = y_pred
 
-    # Optionally, evaluate on known data (train set)
+    # Evaluate on known data using cross-validation
     cv_scores = cross_val_score(rf_model, X_train, y_train, cv=5, scoring='accuracy')
     print("Cross-validated accuracy:", cv_scores.mean())
     acc = cv_scores.mean()
