@@ -64,13 +64,6 @@ print("Script has started...")
 
 output_path = 'C:/Users/ariad/OneDrive/Desktop/Proyecto/LMMResults' 
 
-
-for expr_file, meta_file in zip(expression_files, metadata_files):
-    dataset_name = get_dataset_name(expr_file)
-    print(os.path.basename(expr_file))
-    print(os.path.basename(meta_file))
-    print(dataset_name)
-
 for expr_file, meta_file in zip(expression_files, metadata_files):
     dataset_name = get_dataset_name(expr_file)
     print("\n\n====== Processing Dataset: {} ======\n".format(dataset_name))
